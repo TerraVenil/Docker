@@ -190,6 +190,7 @@ echo "Building image '$IMAGE_NAME' ..."
 BUILD_START=$(date '+%s')
 docker build --force-rm=true --no-cache=true \
        $DOCKEROPS $PROXY_SETTINGS --build-arg DB_EDITION=$EDITION \
+       --memory 2gb \
        -t $IMAGE_NAME -f $DOCKERFILE . || {
   echo ""
   echo "ERROR: Oracle Database Docker Image was NOT successfully created."

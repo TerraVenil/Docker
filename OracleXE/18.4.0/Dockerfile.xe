@@ -62,11 +62,14 @@ RUN cd $INSTALL_DIR && \
 
 FROM base AS builder
 
+COPY ./su /etc/pam.d
+
 # Copy DB install file
 COPY $INSTALL_FILE_1 $CUSTOM_SQL $INSTALL_DIR/
 
 # Install DB software rpm
 RUN cd $INSTALL_DIR && \
+    yum -y install zip && \
     yum -y install $INSTALL_FILE_1 && \
     rm -rf /var/cache/yum && \
     rm -f $INSTALL_FILE_1 && \
@@ -114,6 +117,8 @@ RUN cd $INSTALL_DIR && \
     strip --remove-section=.comment $ORACLE_HOME/bin/rman && \
     strip --remove-section=.comment $ORACLE_HOME/bin/tnslsnr
 
+RUN zip -r oracle_base.zip $ORACLE_BASE
+
 #############################################
 # -------------------------------------------
 # Start new layer for database runtime
@@ -122,11 +127,15 @@ RUN cd $INSTALL_DIR && \
 
 FROM base
 
-COPY --chown=oracle:oinstall --from=builder $ORACLE_BASE $ORACLE_BASE
+COPY --chown=oracle:oinstall --from=builder ./oracle_base.zip ./oracle_base.zip
 COPY --chown=oracle:oinstall --from=builder $INSTALL_DIR $INSTALL_DIR
 COPY --from=builder /etc/init.d/oracle-xe-18c /etc/init.d/oracle-xe-18c
+COPY --from=builder /etc/pam.d/su /etc/pam.d
 
-RUN $ORACLE_BASE/oraInventory/orainstRoot.sh && \
+RUN unzip oracle_base.zip && \
+    rm -f oracle_base.zip && \
+    chown -R oracle:oinstall $ORACLE_BASE \
+    $ORACLE_BASE/oraInventory/orainstRoot.sh && \
     $ORACLE_HOME/root.sh && \
     mkdir -p $ORACLE_BASE/scripts/setup && \
     mkdir $ORACLE_BASE/scripts/startup && \
@@ -154,8 +163,6 @@ VOLUME ["$ORACLE_BASE/diag"]
 VOLUME ["$ORACLE_BASE/fast_recovery_area"]
 VOLUME ["$ORACLE_BASE/tools"]
 EXPOSE 1521 
-HEALTHCHECK --interval=1m --start-period=5m \
-   CMD "$ORACLE_BASE/$CHECK_DB_FILE" >/dev/null || exit 1
 
 CMD exec $ORACLE_BASE/$RUN_FILE
 
